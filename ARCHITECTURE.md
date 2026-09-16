@@ -11,7 +11,7 @@ utilities/ models/ pose/ targetpose/  pure Kotlin: no android imports, unit-test
 guidance/ photoanalysis/
 ```
 
-The engine below the line has no Android dependency, which is what makes the 48 unit tests possible without
+The engine below the line has no Android dependency, which is what makes the 51 unit tests possible without
 a device or emulator. The only exceptions in those packages are the three files that must touch Android
 types: `pose/detection/*` (ML Kit) and `photoanalysis/PhotoAnalyzer.kt` (Bitmap).
 

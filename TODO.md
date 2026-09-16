@@ -2,7 +2,7 @@
 
 ## Next: the first real build
 
-The engine compiles and its 48 unit tests pass. The Android layer — CameraX, ML Kit, Compose, all screens,
+The engine compiles and its 51 unit tests pass. The Android layer — CameraX, ML Kit, Compose, all screens,
 manifest and resources — is written but has **never been compiled**, because the sandbox it was written in
 had no Android SDK and no access to Google's Maven repository. So the first job is a build in Android
 Studio, and it will find mistakes.
@@ -12,13 +12,23 @@ Studio, and it will find mistakes.
 ./gradlew assembleDebug
 ```
 
-Known places to look when it fails:
+Already checked without an SDK, so these are *not* where it will break:
+
+- The engine and its tests compile and pass standalone (kotlinc 2.0.21 + JUnit): 51/51.
+- The screens parse cleanly, and every `when` over a project type is exhaustive — verified by compiling
+  the UI sources against the engine sources, where only androidx symbols stay unresolved.
+- `OutlinedTextFieldDefaults.colors` (7 args) and `SwitchDefaults.colors` (6 args) use real parameter
+  names, checked against the androidx API surface.
+- All six Material icons used by the new screens exist in the Outlined set.
+
+Known places to look when it does fail:
 
 - Opt-in annotations: `FlowRow` needs `@OptIn(ExperimentalLayoutApi::class)`, `ModalBottomSheet` needs
   `@OptIn(ExperimentalMaterial3Api::class)`.
 - Deprecated `Icons.Outlined.VolumeUp` / `VolumeOff` (warnings only).
-- Material 3 colour builders (`OutlinedTextFieldDefaults.colors`, `SwitchDefaults.colors`) — parameter names
-  have moved between Compose versions.
+- Anything the Compose compiler plugin enforces — composable call context, stability, remember rules —
+  none of which a plain kotlinc run can see.
+- Resource linking and manifest merging, which need aapt2 and were never run.
 - Unused import `android.os.SystemClock` in `CoachViewModel.kt`.
 
 ## Then: tune on a real device

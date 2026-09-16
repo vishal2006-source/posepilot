@@ -7,7 +7,8 @@ Package: com.posepilot.app | minSdk 29 | compile/targetSdk 35 | JVM 17
 ---------------------------------------------------------------------
 ## 1. BUILD STATUS
 
-- Pure-Kotlin engine (no Android imports): COMPILED + 48/48 unit tests PASS.
+- Pure-Kotlin engine (no Android imports): COMPILED + 51/51 unit tests PASS
+  (verified standalone with kotlinc 2.0.21 + JUnit 4.13.2, no Gradle/SDK needed).
 - Android layer (CameraX, ML Kit, Compose UI): WRITTEN, NOT YET COMPILED.
   The build sandbox blocked Google Maven + Android SDK, so the first real
   build must happen in Android Studio. Expect some compile fixes.
@@ -145,7 +146,7 @@ Capture -> CaptureHolder (memory) -> Review (PhotoAnalyzer quality report) -> Ph
 ### tests — app/src/test/java/com/posepilot/app/
 TestPoses.kt, AngleMathTest, NormalizationTest, FeatureExtractorTest, RuleEngineTest, PoseMatchingTest,
 FrameAndCorrectionTest, ReferencePoseTest, GuidanceEngineTest, PhotoQualityTest, OverlayTransformTest.
-48 tests, all pass.
+51 tests, all pass.
 
 Bugs already fixed during testing:
 1. Arm raise measured 97.4 vs 90 -> PoseBuilder now uses per-side shoulder->hip line.
