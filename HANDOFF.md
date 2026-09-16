@@ -11,7 +11,8 @@ Package: com.posepilot.app | minSdk 29 | compile/targetSdk 35 | JVM 17
 - Android layer (CameraX, ML Kit, Compose UI): WRITTEN, NOT YET COMPILED.
   The build sandbox blocked Google Maven + Android SDK, so the first real
   build must happen in Android Studio. Expect some compile fixes.
-- App will NOT build yet: missing screens + AndroidManifest + resources (see section 5).
+- All screens, AndroidManifest.xml and resources now exist, so the project is
+  structurally complete — but nothing below the engine has been compiled yet.
 
 Commands (in Android Studio terminal):
   ./gradlew testDebugUnitTest
@@ -127,6 +128,19 @@ Capture -> CaptureHolder (memory) -> Review (PhotoAnalyzer quality report) -> Ph
 - camera/CoachPanels.kt — InstructionCard, ScoreReadout, CountdownOverlay, PhotographerPanel, MessagePill, ShutterButton.
 - camera/PosePickerSheet.kt — ModalBottomSheet grid; PoseTile.
 - poses/PoseLibraryScreen.kt — category chips (only non-empty), 2-col grid, delete for reference poses.
+- reference/ReferenceViewModel.kt — ReferenceState Idle/Processing/Success/Error; ImageDecoder (EXIF,
+  SOFTWARE, longest side 1600) -> stillDetector -> ReferencePoseFactory; startCoaching/save/reset;
+  camera temp file deleted right after decoding.
+- reference/ReferenceScreen.kt — camera (FileProvider + CAMERA permission) / gallery (PickVisualMedia) /
+  files (OpenDocument), photo + extracted skeleton side by side, warnings, name field,
+  Start coaching + Save to library.
+- review/ReviewViewModel.kt — capture from CaptureHolder, PhotoAnalyzer report, SaveState
+  Idle/Saving/Saved/Error, clears the capture in onCleared.
+- review/ReviewScreen.kt — photo (fit), summary, check rows with status icons, Retake + Save,
+  then "Saved to Pictures/PosePilot" + Done.
+- gallery/GalleryScreen.kt — 3-col grid of MediaStore thumbnails (loadThumbnail 360px), tap opens
+  ACTION_VIEW, refreshes on resume, optional READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE request.
+- settings/SettingsScreen.kt — 7 switches, countdown 2/3/5 s, instruction interval 1500/2500/4000 ms.
 
 ### tests — app/src/test/java/com/posepilot/app/
 TestPoses.kt, AngleMathTest, NormalizationTest, FeatureExtractorTest, RuleEngineTest, PoseMatchingTest,
@@ -143,64 +157,21 @@ Bugs already fixed during testing:
 ---------------------------------------------------------------------
 ## 5. REMAINING WORK (in order)
 
-A. Screens (referenced by PosePilotNavHost — build fails without them):
+A-D are DONE (screens, AndroidManifest.xml, resources, docs). What they became:
 
- 1. ui/reference/ReferenceViewModel.kt  (class ReferenceViewModel(container: AppContainer, app: Application) : AndroidViewModel(app))
-    - States: Idle, Processing, Success(template, warnings, previewBitmap), Error(message).
-    - process(uri): decode with ImageDecoder (auto EXIF, setAllocator(SOFTWARE), cap longest side ~1600)
-      -> container.stillDetector.detect(bitmap)
-      -> ReferencePoseFactory.fromFrame(frame, id = "ref-" + System.currentTimeMillis(), name, faces.size).
-    - startCoaching(): container.templates.setTransient(template), return template.id.
-    - save(name): container.templates.save(template.copy(name = name)).
-    - Never store the photo; delete camera temp file after decoding.
+A. Screens — ui/reference/{ReferenceViewModel,ReferenceScreen}.kt,
+   ui/review/{ReviewViewModel,ReviewScreen}.kt, ui/gallery/GalleryScreen.kt,
+   ui/settings/SettingsScreen.kt. See section 4 for what each one does.
+B. app/src/main/AndroidManifest.xml — CAMERA + READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE(<=32),
+   camera.any feature, <queries> for TTS_SERVICE and IMAGE_CAPTURE, PosePilotApplication,
+   MainActivity (LAUNCHER, adjustResize), FileProvider at ${applicationId}.fileprovider.
+C. Resources — values/{strings,colors,themes}.xml, xml/file_paths.xml,
+   mipmap-anydpi-v26/ic_launcher{,_round}.xml + drawable/ic_launcher_foreground.xml
+   (placeholder white stick figure; -v26 qualifier because adaptive icons need API 26+).
+D. Docs — README.md, ARCHITECTURE.md, TODO.md.
 
- 2. ui/reference/ReferenceScreen.kt  (vm, onBack, onStartCoaching: (String) -> Unit)
-    - Inputs: PickVisualMedia (gallery), OpenDocument("image/*") (files),
-      TakePicture(uri via FileProvider) (camera; request CAMERA permission first).
-    - Show photo preview + extracted SkeletonFigure + warnings + name field,
-      buttons "Start coaching" and "Save to library".
-
- 3. ui/review/ReviewViewModel.kt  (class ReviewViewModel(container: AppContainer) : ViewModel())
-    - capture = container.captures.current; template = container.templates.byId(capture.templateId).
-    - analysis via PhotoAnalyzer(container.stillDetector).analyze(bitmap, template) in viewModelScope.
-    - save() -> container.photos.save(bitmap); states saving/saved/error.
-    - onCleared -> container.captures.clear().
-
- 4. ui/review/ReviewScreen.kt  (vm, onRetake, onDone)
-    - Photo (fit), summary, check rows (PASS / WARN / FAIL / UNAVAILABLE symbols + detail),
-      Retake + Save; after save show "Saved to Pictures/PosePilot" and Done.
-
- 5. ui/gallery/GalleryScreen.kt  (container, onBack)
-    - container.photos.list(), grid thumbnails via contentResolver.loadThumbnail(uri, Size(360,360), null),
-      tap -> ACTION_VIEW intent, refresh on resume.
-    - Optional: request READ_MEDIA_IMAGES (33+) / READ_EXTERNAL_STORAGE (<=32) to see photos from old installs.
-
- 6. ui/settings/SettingsScreen.kt  (container, onBack)
-    - Switches: voice, skeleton, target pose, match %, auto-capture, mirror front camera, front camera default.
-    - Countdown: 2 / 3 / 5 s. Instruction interval: 1500 / 2500 / 4000 ms.
-    - Use container.settings.update { it.copy(...) } and collect container.settings.settings.
-
-B. app/src/main/AndroidManifest.xml
-   - uses-permission CAMERA; READ_MEDIA_IMAGES; READ_EXTERNAL_STORAGE maxSdkVersion="32"
-   - uses-feature android.hardware.camera.any required="true"
-   - <queries>: intent action android.intent.action.TTS_SERVICE (REQUIRED for TTS on API 30+),
-     and android.media.action.IMAGE_CAPTURE
-   - application: name=".PosePilotApplication", allowBackup="false", icon/roundIcon, theme
-   - activity .MainActivity exported=true, MAIN/LAUNCHER, windowSoftInputMode="adjustResize"
-   - provider androidx.core.content.FileProvider, authorities="${applicationId}.fileprovider",
-     exported=false, grantUriPermissions=true, meta-data res/xml/file_paths
-
-C. Resources (app/src/main/res/)
-   - values/strings.xml (app_name "PosePilot")
-   - values/themes.xml: Theme.PosePilot parent android:Theme.Material.NoActionBar, windowBackground black
-   - xml/file_paths.xml: <cache-path name="refs" path="reference/" />
-   - mipmap-anydpi/ic_launcher.xml + ic_launcher_round.xml (adaptive icon),
-     drawable/ic_launcher_foreground.xml (white stick figure vector), values/colors (black background)
-
-D. Docs: README.md (include spec's product-positioning paragraph), ARCHITECTURE.md, TODO.md
-
-E. First Android Studio build: fix compile errors, run on device, tune thresholds
-   (readyThreshold 0.85, tolerances) with real people.
+E. STILL OPEN — first Android Studio build: fix compile errors, run on device, tune thresholds
+   (readyThreshold 0.85, tolerances) with real people. See TODO.md.
 
 ---------------------------------------------------------------------
 ## 6. DEFERRED (post-MVP)
